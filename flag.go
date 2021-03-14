@@ -368,7 +368,6 @@ func MustParse(args []string, usage UsageFunc, flags interface{}) {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0)
 		} else {
-			fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 	}
@@ -391,7 +390,7 @@ func splitAndTrim(name string) []string {
 	names := strings.Split(name, ",")
 	var end int
 	for i := range names {
-		names[i] = strings.TrimSpace(names[i])
+		names[i] = strings.TrimPrefix(strings.TrimSpace(names[i]), "-")
 		if names[i] != "" {
 			names[end] = names[i]
 			end++
