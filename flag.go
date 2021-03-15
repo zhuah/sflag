@@ -263,7 +263,7 @@ func (p *Parser) resolveSubCommand(commands []Command, args []string) (Command, 
 		}
 	}
 
-	return Command{}, nil, fmt.Errorf("unknown command: %s", cmdname)
+	return Command{}, nil, newErrorf("unknown command: %s", cmdname)
 }
 
 func (p *Parser) parse(args []string, flagsPtr interface{}, commands []Command) (subcmd Command, subcommand []string, err error) {
@@ -283,12 +283,12 @@ func (p *Parser) parse(args []string, flagsPtr interface{}, commands []Command) 
 		nonFlagArgs := cmdline.Args()
 		if len(commands) > 0 {
 			if len(nonFlagArgs) == 0 {
-				return subcmd, nil, fmt.Errorf("no command to be run")
+				return subcmd, nil, newErrorf("no command to be run")
 			}
 			return p.resolveSubCommand(commands, nonFlagArgs)
 		}
 		if len(nonFlagArgs) > 0 {
-			return subcmd, nil, errors.New("the command should be runs without arguments")
+			return subcmd, nil, newErrorf("the command should be runs without arguments")
 		}
 		return subcmd, nil, nil
 	}
@@ -339,7 +339,7 @@ func (p *Parser) parse(args []string, flagsPtr interface{}, commands []Command) 
 				})
 			case ftyp.Type == reflect.TypeOf((*[]string)(nil)).Elem():
 				if nonFlagSliceField.IsValid() {
-					panic(fmt.Errorf("duplicated non-flag field of type []string: %s", ftyp.Name))
+					panic(newErrorf("duplicated non-flag field of type []string: %s", ftyp.Name))
 				}
 				nonFlagSliceField = fval
 				flags.sliceNonFlag = append(flags.sliceNonFlag, flagInfo{
@@ -349,7 +349,7 @@ func (p *Parser) parse(args []string, flagsPtr interface{}, commands []Command) 
 					NonFlagSlice: true,
 				})
 			default:
-				panic(fmt.Errorf("only string/[]string allowed for non-flag field: %s", ftyp.Name))
+				panic(newErrorf("only string/[]string allowed for non-flag field: %s", ftyp.Name))
 			}
 
 			continue
@@ -392,7 +392,7 @@ func (p *Parser) parse(args []string, flagsPtr interface{}, commands []Command) 
 		})
 	}
 	if nonFlagSliceField.IsValid() && len(commands) > 0 {
-		panic(fmt.Errorf("non-flag field of type []string is not allowed with sub commands: %s", flags.sliceNonFlag[0].Name))
+		panic(newErrorf("non-flag field of type []string is not allowed with sub commands: %s", flags.sliceNonFlag[0].Name))
 	}
 
 	err = cmdline.Parse(args[1:])
@@ -401,6 +401,7 @@ func (p *Parser) parse(args []string, flagsPtr interface{}, commands []Command) 
 	}
 
 	nonflagArgs := cmdline.Args()
+
 	var consumedNonFlagArgs int
 	for i, s := range nonflagArgs {
 		if i < len(nonFlagStringFields) {
@@ -411,20 +412,21 @@ func (p *Parser) parse(args []string, flagsPtr interface{}, commands []Command) 
 			consumedNonFlagArgs = len(nonflagArgs)
 			break
 		} else {
+			consumedNonFlagArgs = i
 			break
 		}
 	}
 	if consumedNonFlagArgs < len(nonflagArgs) {
 		if len(commands) == 0 {
 			if len(nonFlagStringFields) == 0 {
-				return subcmd, nil, fmt.Errorf("non-flag args not allowed: %v", nonflagArgs)
+				return subcmd, nil, newErrorf("non-flag args not allowed: %v", nonflagArgs)
 			}
-			return subcmd, nil, fmt.Errorf("accept only %d non-flag args: %v", len(nonFlagStringFields), nonflagArgs)
+			return subcmd, nil, newErrorf("accept only %d non-flag args: %v", len(nonFlagStringFields), nonflagArgs)
 		}
 		return p.resolveSubCommand(commands, nonflagArgs[consumedNonFlagArgs:])
 	}
 	if len(commands) > 0 {
-		return subcmd, nil, fmt.Errorf("no command to be run")
+		return subcmd, nil, newErrorf("no command to be run")
 	}
 	return subcmd, nil, nil
 }
@@ -463,7 +465,7 @@ func (p *Parser) RunCommand(args []string, globalFlags interface{}, commands ...
 		if cmd.Run != nil {
 			cmd.Run(cmdArgs)
 		} else {
-			panic(fmt.Errorf("Command.Run is nil: %s", cmd.Name))
+			panic(newErrorf("Command.Run is nil: %s", cmd.Name))
 		}
 	} else {
 		if cmd.Run != nil {
@@ -471,7 +473,7 @@ func (p *Parser) RunCommand(args []string, globalFlags interface{}, commands ...
 		} else if cmd.RunWithFlags != nil {
 			cmd.RunWithFlags(globalFlags, cmdArgs)
 		} else {
-			panic(fmt.Errorf("Command.Run/RunWithFlags are both nil: %s", cmd.Name))
+			panic(newErrorf("Command.Run/RunWithFlags are both nil: %s", cmd.Name))
 		}
 	}
 }
@@ -496,6 +498,10 @@ func handleError(err error) {
 		if errors.Is(err, ErrHelp) {
 			os.Exit(0)
 		} else {
+			var se sflagError
+			if errors.As(err, &se) {
+				fprintln(os.Stderr, err)
+			}
 			os.Exit(1)
 		}
 	}
@@ -527,4 +533,15 @@ func fprintf(w io.Writer, format string, v ...interface{}) {
 }
 func fprintln(w io.Writer, v ...interface{}) {
 	_, _ = fmt.Fprintln(w, v...)
+}
+
+type sflagError struct {
+	err string
+}
+
+func newErrorf(format string, v ...interface{}) error {
+	return sflagError{fmt.Sprintf(format, v...)}
+}
+func (e sflagError) Error() string {
+	return e.err
 }
