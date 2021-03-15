@@ -89,13 +89,13 @@ func (c *commandFlags) printDefaults(w io.Writer) {
 				if f.Default != "" || f.Env != "" {
 					fprintf(tw, ` (`)
 					if f.Default != "" {
-						fprintf(tw, ` default: %s`, f.Default)
+						fprintf(tw, `default: %s`, f.Default)
 					}
 					if f.Env != "" {
 						if f.Default != "" {
 							fprintf(tw, `, `)
 						}
-						fprintf(tw, ` env: %s`, f.Env)
+						fprintf(tw, `env: %s`, f.Env)
 					}
 
 					fprintf(tw, `)`)
