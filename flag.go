@@ -25,9 +25,6 @@ type Command struct {
 	Name  string
 	Usage string
 
-	// global flags must not be nil with this option
-	RunWithFlags func(flags interface{}, args []string)
-	// global flags will be ignored even if not nil
 	Run func(args []string)
 }
 
@@ -470,10 +467,8 @@ func (p *Parser) RunCommand(args []string, globalFlags interface{}, commands ...
 	} else {
 		if cmd.Run != nil {
 			cmd.Run(cmdArgs)
-		} else if cmd.RunWithFlags != nil {
-			cmd.RunWithFlags(globalFlags, cmdArgs)
 		} else {
-			panic(newErrorf("Command.Run/RunWithFlags are both nil: %s", cmd.Name))
+			panic(newErrorf("Command.Run is nil: %s", cmd.Name))
 		}
 	}
 }
